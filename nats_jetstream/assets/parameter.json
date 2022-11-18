@@ -1,0 +1,6 @@
+{
+        "client_name": "$HOST", 
+        "nats_server": "$IP", 
+        "nkey_authentication": "$AUTH", 
+        "enabled": true
+}

@@ -1,0 +1,131 @@
+#!/bin/bash
+set -x
+
+hostname ${HOSTNAME}
+export AUTH=${NKEYS}
+pretty_name=$(awk -F '[="]*' '/^PRETTY_NAME/ { print $2 }' < /etc/os-release)
+name=$(awk -F '[="]*' '/^NAME/ { print $2 }' < /etc/os-release)
+sudo apt-get -y update
+sudo apt-get -y install ca-certificates curl gnupg lsb-release golang
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get -y update
+sudo apt-get -y install docker-ce docker-ce-cli containerd.io jq git unzip
+sudo systemctl enable containerd.service
+sudo service docker start
+sudo usermod -a -G docker ubuntu
+sudo curl -f https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
+sudo dpkg -i amazon-cloudwatch-agent.deb
+sudo systemctl restart amazon-cloudwatch-agent
+sudo curl -f https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip
+unzip awscliv2.zip
+sudo ./aws/install
+
+sudo wget https://github.com/nats-io/nats-server/releases/download/v2.9.2/nats-server-v2.9.2-amd64.deb
+sudo dpkg -i nats-server-v2.9.2-amd64.deb
+useradd nats
+
+
+aws s3 sync s3://${S3} /tmp/assets
+cp /tmp/assets/nats.service /etc/systemd/system
+
+export IP=$(ec2metadata --local-ipv4):4222
+export HOST=$(hostname)
+
+    export GOPATH=/root/go
+    export GOCACHE=/root/go
+
+
+if [ "$AUTH" == 'true' ]
+then
+    server_file=nats-server.conf.nkey
+    export GOPATH=/root/go
+    export GOCACHE=/root/go
+    go install github.com/nats-io/nkeys/nk@latest
+
+    /root/go/bin/nk -gen user -pubout > /tmp/keys.txt
+
+    export SEED=$(cat /tmp/keys.txt | head -1)
+    export USER=$(cat /tmp/keys.txt | tail -1)
+
+    export AUTH_STRING="--nkey=/tmp/keys.txt"
+
+else
+    server_file=nats-server.conf
+    export AUTH_STRING=""
+fi
+
+envsubst < /tmp/assets/parameter.json > /tmp/assets/tmp_parameter.json
+cat /tmp/assets/tmp_parameter.json
+
+envsubst <  /tmp/assets/$server_file  > /etc/nats-server.conf
+
+service nats start
+
+aws ssm put-parameter \
+    --region eu-west-2 \
+    --name /dev/neil1 \
+    --type String \
+    --value file:///tmp/assets/tmp_parameter.json \
+    --overwrite
+
+    aws ssm put-parameter \
+    --region eu-west-2 \
+    --name /dev/neil1/seed \
+    --type SecureString \
+    --value "$SEED" \
+    --overwrite
+
+      aws ssm put-parameter \
+    --region eu-west-2 \
+    --name /dev/neil1/user \
+    --type SecureString \
+    --value "$USER" \
+    --overwrite
+
+go install github.com/nats-io/natscli/nats@latest
+
+nats=/root/go/bin/nats
+
+$nats stream add USER \
+    --subjects "USER.created" \
+    --subjects "USER.linked" \
+    --subjects "USER.deleted" \
+    --ack --max-msgs=-1 --max-bytes=-1 --max-age=-1 --storage file \
+    --retention interest --max-msg-size=-1 --replicas=1 \
+    --max-msgs-per-subject=-1 --dupe-window="2m0s" --discard new \
+    --no-allow-rollup --deny-delete  $AUTH_STRING --no-deny-purge
+
+$nats stream add FRIENDGROUP \
+    --subjects "FRIENDGROUP.created" \
+    --subjects "FRIENDGROUP.members-updated" \
+    --subjects "FRIENDGROUP.deleted" \
+    --ack --max-msgs=-1 --max-bytes=-1 --max-age=-1 --storage file \
+    --retention interest --max-msg-size=-1 --replicas=1 \
+    --max-msgs-per-subject=-1 --dupe-window="2m0s" --discard new \
+    --no-allow-rollup --deny-delete --no-deny-purge $AUTH_STRING
+
+$nats stream add STREAM \
+    --subjects "STREAM.ended" \
+    --ack --max-msgs=-1 --max-bytes=-1 --max-age=-1 --storage file \
+    --retention interest --max-msg-size=-1 --replicas=1 \
+    --max-msgs-per-subject=-1 --dupe-window="2m0s" --discard new \
+    --no-allow-rollup --deny-delete --no-deny-purge $AUTH_STRING
+
+function add_consumer {
+    local stream="$1"
+    local consumer_name="$2"
+    local subject_filter="$3"
+
+    $nats consumer add $stream $consumer_name --filter "$subject_filter" \
+    --ack explicit --pull --deliver all --max-deliver=-1 \
+    --backoff=none --max-pending=10000000 --replay=instant \
+    --no-headers-only --wait=300s $AUTH_STRING
+}
+
+add_consumer USER AMIDO_INGESTER_USER_CREATED "USER.created"
+add_consumer USER AMIDO_INGESTER_USER_LINKED "USER.linked"
+add_consumer USER AMIDO_INGESTER_USER_DELETED "USER.deleted"
+add_consumer FRIENDGROUP AMIDO_INGESTER_FRIENDGROUP_CREATED "FRIENDGROUP.created"
+add_consumer FRIENDGROUP AMIDO_INGESTER_FRIENDGROUP_MEMBERS_UPDATED "FRIENDGROUP.members-updated"
+add_consumer FRIENDGROUP AMIDO_INGESTER_FRIENDGROUP_DELETED "FRIENDGROUP.deleted"
