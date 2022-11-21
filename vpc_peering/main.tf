@@ -1,27 +1,12 @@
-data "aws_vpc" "owner" {
-  provider = aws.owner
-  id       = var.owner_vpc_id
-}
-data "aws_vpc" "accepter" {
-  provider = aws.accepter
-  id       = var.accepter_vpc_id
-}
-data "aws_route_tables" "owner" {
-  provider = aws.owner
-  vpc_id   = var.owner_vpc_id
-}
-data "aws_route_tables" "accepter" {
-  provider = aws.accepter
-  vpc_id   = data.aws_vpc.accepter.id
-}
 locals {
-  accepter_account_id = element(split(":", data.aws_vpc.accepter.arn), 4)
-  owner_account_id    = element(split(":", data.aws_vpc.owner.arn), 4)
+  accepter_account_id = data.aws_caller_identity.accepter.account_id
+  owner_account_id    = data.aws_caller_identity.owner.account_id
 }
+
 resource "aws_vpc_peering_connection" "owner" {
   provider      = aws.owner
-  vpc_id        = var.owner_vpc_id
-  peer_vpc_id   = data.aws_vpc.accepter.id
+  vpc_id        = module.vpc-owner.vpc_id
+  peer_vpc_id   = module.vpc-accepter.vpc_id
   peer_owner_id = local.accepter_account_id
   peer_region   = "us-east-1"
   tags = {
@@ -38,15 +23,21 @@ resource "aws_vpc_peering_connection_accepter" "accepter" {
 }
 resource "aws_route" "owner" {
   provider                  = aws.owner
-  count                     = length(data.aws_route_tables.owner.ids)
-  route_table_id            = tolist(data.aws_route_tables.owner.ids)[count.index]
-  destination_cidr_block    = data.aws_vpc.accepter.cidr_block
+  count                     = length(concat(module.vpc-owner.private_route_table_ids,module.vpc-owner.public_route_table_ids))
+  route_table_id            = concat(module.vpc-owner.private_route_table_ids,module.vpc-owner.public_route_table_ids)[count.index]
+  destination_cidr_block    = module.vpc-accepter.vpc_cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.owner.id
+  depends_on = [
+    module.vpc-owner
+  ]
 }
 resource "aws_route" "accepter" {
   provider                  = aws.accepter
-  count                     = length(data.aws_route_tables.accepter.ids)
-  route_table_id            = tolist(data.aws_route_tables.accepter.ids)[count.index]
-  destination_cidr_block    = data.aws_vpc.owner.cidr_block
+  count                     = length(concat(module.vpc-accepter.private_route_table_ids,module.vpc-accepter.public_route_table_ids))
+  route_table_id            = concat(module.vpc-accepter.private_route_table_ids,module.vpc-accepter.public_route_table_ids)[count.index]
+  destination_cidr_block    = module.vpc-owner.vpc_cidr_block
   vpc_peering_connection_id = aws_vpc_peering_connection.owner.id
+  depends_on = [
+    module.vpc-accepter
+  ]
 } 
