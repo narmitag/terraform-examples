@@ -11,5 +11,5 @@ Random selection of terraform code, they should run from ok from a sub-directory
 Run Tests 
 ```
  cd test
- go test -v -timeout 30m
+ go test -v -timeout 240m
  ```

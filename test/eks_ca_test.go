@@ -6,10 +6,10 @@ import (
 	"github.com/gruntwork-io/terratest/modules/terraform"
 )
 
-func TestEks(t *testing.T) {
+func TestEksCa(t *testing.T) {
 
 	terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-		TerraformDir: "../eks",
+		TerraformDir: "../eks-ca",
 	})
 
 	// website::tag::5:: Clean up resources with "terraform destroy" at the end of the test.

@@ -9,7 +9,7 @@ resource "aws_s3_bucket" "log_bucket" {
     }
   }
   versioning {
-    enabled = true
+    enabled = false
   }
   lifecycle_rule {
       id      = "log_retention"
