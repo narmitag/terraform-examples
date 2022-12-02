@@ -10,7 +10,7 @@ resource "tls_self_signed_cert" "ca" {
 
   subject {
     common_name  = "${var.environment_name}.vpn.ca"
-    organization = "pdp"
+    organization = "demo"
   }
 
   validity_period_hours = 87500
@@ -36,7 +36,7 @@ resource "tls_cert_request" "root" {
 
   subject {
     common_name  = "${var.environment_name}.vpn.client"
-    organization = "pdp"
+    organization = "demo"
   }
 }
 
@@ -71,7 +71,7 @@ resource "tls_cert_request" "server" {
 
   subject {
     common_name  = "${var.environment_name}.vpn.server"
-    organization = "pdp"
+    organization = "demo"
   }
 }
 
@@ -163,19 +163,19 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpn" {
 }
 
 resource "aws_ssm_parameter" "cert" {
-  name  = "${var.environment_name}_cas_vpn_certificate"
+  name  = "${var.environment_name}_vpn_certificate"
   type  = "SecureString"
   value = tls_locally_signed_cert.root.cert_pem
 }
 
 resource "aws_ssm_parameter" "key" {
-  name  = "${var.environment_name}_cas_vpn_key"
+  name  = "${var.environment_name}_vpn_key"
   type  = "SecureString"
   value = tls_private_key.root.private_key_pem
 }
 
 resource "aws_ssm_parameter" "endpoint_id" {
-  name  = "${var.environment_name}_cas_vpn_endpoint_id"
+  name  = "${var.environment_name}_vpn_endpoint_id"
   type  = "SecureString"
   value = aws_ec2_client_vpn_endpoint.vpn.id
 }
