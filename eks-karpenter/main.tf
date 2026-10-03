@@ -330,7 +330,7 @@ resource "helm_release" "coredns" {
   create_namespace = false
   description      = "CoreDNS is a DNS server that chains plugins and provides Kubernetes DNS Services"
   chart            = "coredns"
-  version          = "1.19.4"
+  version          = "1.48.2"
   repository       = "https://coredns.github.io/helm"
 
   # For EKS image repositories https://docs.aws.amazon.com/eks/latest/userguide/add-ons-images.html
