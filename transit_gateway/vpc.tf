@@ -1,6 +1,6 @@
 module "vpc-a" {
     source  = "terraform-aws-modules/vpc/aws"
-    version = "3.14.2"
+    version = "3.19.0"
 
     name                 = "${var.env}-vpc-a"
     cidr                 = "${var.cidr_prefix-a}.0.0/16"
@@ -15,7 +15,7 @@ module "vpc-a" {
 
 module "vpc-b" {
     source  = "terraform-aws-modules/vpc/aws"
-    version = "3.14.2"
+    version = "3.19.0"
 
     name                 = "${var.env}-vpc-b"
     cidr                 = "${var.cidr_prefix-b}.0.0/16"
