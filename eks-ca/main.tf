@@ -19,7 +19,7 @@ resource "aws_kms_key" "eks" {
 #tfsec:ignore:aws-eks-no-public-cluster-access-to-cidr
 module "eks" {
   source                          = "terraform-aws-modules/eks/aws"
-  version                         = "21.26.0"
+  version                         = "21.29.0"
   cluster_name                    = local.cluster_name
   cluster_version                 = var.eks_version
   subnets                         = module.vpc.private_subnets
